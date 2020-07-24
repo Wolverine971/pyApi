@@ -34,7 +34,8 @@
             },
             "args": [
                 "run",
-                "--debugger"
+                "--debugger",
+                "--host=0.0.0.0"
             ],
             "console": "integratedTerminal"
         },
