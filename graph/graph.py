@@ -10,9 +10,9 @@ import torch
 import re
 from allennlp.predictors.predictor import Predictor
 import allennlp_models.coref
+import allennlp_models.syntax.srl
 import os
 import requests
-from elasticsearch import Elasticsearch
 import nltk.corpus
 import nltk
 from nltk.tokenize import sent_tokenize
@@ -20,7 +20,10 @@ import pprint
 import pandas as pd
 import multiprocessing as mp
 import time
+import asyncio
 
+import nltk
+nltk.download('punkt')
 pp = pprint.PrettyPrinter(
     indent=2, width=80, depth=None, stream=None, compact=False)
 
@@ -40,7 +43,9 @@ pp = pprint.PrettyPrinter(
 
 sop = []
 
-es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
+
+from elasticsearch import Elasticsearch
+es = Elasticsearch([{'host': '192.168.1.251', 'port': 9200}])
 # es = requests
 
 rgx = "/([E|I]+[N|S][T|F]+[P|J])+(?=\'?s|S)"
@@ -145,7 +150,7 @@ def search(es_object, index_name, *search):
 
 
 def ESget(indexx):
-    res = es.search(index=indexx, size=100)
+    res = es.search(index=indexx)
     # res = requests.get("http://localhost:9200/" + indexx + "/_search")
     hits = res["hits"]["hits"]
     # allHits = []
@@ -178,8 +183,7 @@ def findCoReference(text):
     except RuntimeError as e:
         print('error')
         print(e)
-        res = torch.cuda.empty_cache()
-        print(res)
+        torch.cuda.empty_cache()
         try:
             pred = corefPredictor.predict(document=text)
             return pred
@@ -246,7 +250,7 @@ def getWordTest():
                   [97, 97],
                   [99, 99],
                   [114, 114]]]
-    print(getWord(tClusters, tDoc))
+    print(getWord(tClusters, tDoc, 'entj'))
 # getWordTest()
 
 # replace all groups with the MBTItype
@@ -428,8 +432,7 @@ def infoExtract_fromArr(sentenceArr):
         except RuntimeError as e:
             print('error')
             print(e)
-            res = torch.cuda.empty_cache()
-            print(res)
+            torch.cuda.empty_cache()
             try:
                 pred = openPredictor.predict(sentence=sent)
                 predList.append(pred)
@@ -441,18 +444,16 @@ def infoExtract_fromArr(sentenceArr):
 
 
 
-def infoExtract(sentence):
+async def infoExtract(sentence):
     try:
         preds = openPredictor.predict(sentence=sentence)
 
     except RuntimeError as e:
         print('error')
         print(e)
-        res = torch.cuda.empty_cache()
-        print(res)
+        torch.cuda.empty_cache()
         try:
             pred = openPredictor.predict(sentence=sentence)
-            predList.append(pred)
         except RuntimeError as e:
             print('failed twice on openPredictor')
 
@@ -655,25 +656,20 @@ def createGraph(index):
     return sop
 
 
-{
-    "title":"",
-    "index":"",
-    "section":"",
-    "url":"",
-    "rootNode":""
-    }
 
 
-def annotateDoc(doc):
+async def annotateDoc(doc):
     print('running pipeline for single doc')
     pool = mp.Pool(processes=4)
     start_time = time.time()
+    section = doc['section']
+    section.strip()
 
-    if doc['section'].strip() != '':
+    if section != '':
         docToStore = {}
         docToStore["title"] = doc["title"].strip()
         docToStore["index"] = doc["index"].strip()
-        docToStore["section"] = doc["section"].strip()
+        docToStore["section"] = section
         docToStore["url"] = doc["url"]
         docToStore["rootNode"] = doc["rootNode"]
         docToStore["sentences"] = []
@@ -703,12 +699,14 @@ def annotateDoc(doc):
             # docString = " ".join(filter(None, cleanDoc))
             # sent_text = sent_tokenize(docString)
             sent_Arr = sent_tokenize(hit)
+            
 
             for sent in sent_Arr:
-                info = infoExtract(sent)
+                sent_toStore = {}
+                info = await infoExtract(sent)
                 sent_toStore['sentence'] = sent
                 sent_toStore['info'] = info
-                docToStore["sentences"].push(sent_toStore)
+                docToStore["sentences"].append(sent_toStore)
 
             
             return docToStore
