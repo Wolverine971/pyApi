@@ -2,17 +2,19 @@
 # TODO: run all sections through
 # TODO: try to optimize- parallel processes??
 
-
+from annotate import findCoReference
 # https://py2neo.org/v4/
 # from py2neo import Database, Graph, Node, Relationship
 # from pandas.io.json import json_normalize
+# from elasticsearch import Elasticsearch
 import torch
 import re
 from allennlp.predictors.predictor import Predictor
-import allennlp_models.coref
-import allennlp_models.syntax.srl
+# import allennlp_models.coref
+# import allennlp_models.structured_prediction
+# import allennlp_models.syntax.srl
 import os
-import requests
+# import requests
 import nltk.corpus
 import nltk
 from nltk.tokenize import sent_tokenize
@@ -20,7 +22,10 @@ import pprint
 import pandas as pd
 import multiprocessing as mp
 import time
-import asyncio
+# import asyncio
+
+
+from graph.entityExtract import triplet_extraction
 
 import nltk
 nltk.download('punkt')
@@ -44,83 +49,17 @@ pp = pprint.PrettyPrinter(
 sop = []
 
 
-from elasticsearch import Elasticsearch
-es = Elasticsearch([{'host': '192.168.1.251', 'port': 9200}])
+# es = Elasticsearch([{'host': '192.168.1.251', 'port': 9200}])
 # es = requests
 
 rgx = "/([E|I]+[N|S][T|F]+[P|J])+(?=\'?s|S)"
 torch.cuda.empty_cache()
-
-# corefPredictor = Predictor.from_path(
-#     "C:\\Users\\djway\\Desktop\\ML-notebook\\coref-model-2018.02.05")
-
-# openPredictor = Predictor.from_path(
-# "https://s3-us-west-2.amazonaws.com/allennlp/models/openie-model.2018-08-20.tar.gz")
-
-# windows
-# corefPredictor = Predictor.from_path(
-#     "C:\\Users\\djway\\Desktop\\ML-notebook\\coref-model-2018.02.05")
-
-# dirname = os.path.dirname(__file__)
-# corefPath = os.path.join(dirname, '..\coref-model-2018.02.05')
-
-
-dirname = os.path.dirname(__file__)
-# corefPath = os.path.join(dirname, '..\coref-spanbert-large-2020.02.27')
-
-# corefPath = "C:\\Users\\djway\Desktop\\pyApi\\coref-spanbert-large-2020.02.27"
-
-# corefPath = "C:\\Users\\djway\\Downloads\\coref-spanbert-large-2020.02.27.tar"
-# corefPath = "C:\\Users\\djway\Desktop\\pyApi\\coref-model-2018.02.05\\config.json"
+print("gpu count")
+print(torch.cuda.device_count())
 
 
 print("cuda available")
 print(torch.cuda.is_available())
-# linux
-corefPredictor = Predictor.from_path(
-    "https://storage.googleapis.com/allennlp-public-models/coref-spanbert-large-2020.02.27.tar.gz")
-# archive_path=corefPath, predictor_name='coref', cuda_device=0, dataset_reader_to_load="validation")
-# corefPredictor = Predictor.from_path(corefPath)
-# Predictor.from_path(
-#     # "C:\\Users\\djway\\Desktop\\ML-notebook\\coref-model-2018.02.05")
-#     "https://storage.googleapis.com/allennlp-public-models/coref-spanbert-large-2020.02.27.tar.gz")
-# "/mnt/c/Users/djway/Desktop/ML-notebook/coref-model-2018.02.05")
-# corefPredictor._model = corefPredictor._model.cuda()
-
-# coreArchive = load_archive("https://storage.googleapis.com/allennlp-public-models/coref-spanbert-large-2020.02.27.tar.gz", cuda_device=0)
-# corefPredictor = Predictor.from_archive(coreArchive)
-
-
-# import allennlp_models.syntax.srl
-# semanticRoleLabelPredict = Predictor.from_path("https://s3-us-west-2.amazonaws.com/allennlp/models/bert-base-srl-2019.06.17.tar.gz", cuda_device=0)
-# semanticRoleLabelPredict._model = semanticRoleLabelPredict._model.cuda()
-
-
-
-
-
-# openPredictor = Predictor.from_path(
-#     "https://s3-us-west-2.amazonaws.com/allennlp/models/openie-model.2018-08-20.tar.gz")
-import allennlp_models.syntax.srl
-openPredictor = Predictor.from_path("https://storage.googleapis.com/allennlp-public-models/openie-model.2020.03.26.tar.gz")
-# openPredictor._model = openPredictor._model.cuda()
-
-# openArchive = load_archive("https://s3-us-west-2.amazonaws.com/allennlp/models/openie-model.2018-08-20.tar.gz", cuda_device=0)
-# openPredictor = Predictor.from_archive(openArchive)
-
-# def corefPredictor(word):
-#     req = "echo '{'passage': %}' | allennlp predict 'C:\\Users\\djway\\Desktop\\ML-notebook\\coref-model-2018.02.05 -" % word
-#     stream = os.popen(req)
-#     output = stream.read()
-#     return output
-
-
-# def openPredictor(word):
-#     req = "echo '{'passage': %}' | allennlp predict 'https://s3-us-west-2.amazonaws.com/allennlp/models/openie-model.2018-08-20.tar.gz -" % word
-#     stream = os.popen(req)
-#     output = stream.read()
-#     return output
-
 
 class Tripple:
     def __init__(self, sub, pred, obj):
@@ -167,28 +106,6 @@ def ESget(indexx):
 # "https://storage.googleapis.com/allennlp-public-models/bidaf-elmo-model-2018.11.30-charpad.tar.gz"
 # ENTJs are analytical and objective, and like bringing order to the world around them. When there are flaws in a system, the ENTJ sees them, and enjoys the process of discovering and implementing a better way. ENTJs are assertive and enjoy taking charge; they see their role as that of leader and manager, organizing people and processes to achieve their goals.",
 
-
-def findCoReference(text):
-    # make api call
-    # /coRef
-    # pred = corefPredictor(text)
-    try:
-        pred = corefPredictor.predict(document=text)
-        # pred = semanticRoleLabelPredict.predict(sentence=text)
-
-
-        
-        return pred
-
-    except RuntimeError as e:
-        print('error')
-        print(e)
-        torch.cuda.empty_cache()
-        try:
-            pred = corefPredictor.predict(document=text)
-            return pred
-        except RuntimeError as e:
-            print('failed twice on corefPredictor')
 
 #MBTItype = ''
 # find word in sentence
@@ -429,6 +346,14 @@ def infoExtract_fromArr(sentenceArr):
             pred = openPredictor.predict(sentence=sent)
             predList.append(pred)
 
+            if torch.cuda.is_available():
+                pred = openPredictor.predict(sentence=sent)
+                predList.append(pred)
+            else:
+                time.sleep(5)
+                pred = openPredictor.predict(sentence=sent)
+                predList.append(pred)
+
         except RuntimeError as e:
             print('error')
             print(e)
@@ -442,22 +367,6 @@ def infoExtract_fromArr(sentenceArr):
     return predList
 
 
-
-
-async def infoExtract(sentence):
-    try:
-        preds = openPredictor.predict(sentence=sentence)
-
-    except RuntimeError as e:
-        print('error')
-        print(e)
-        torch.cuda.empty_cache()
-        try:
-            pred = openPredictor.predict(sentence=sentence)
-        except RuntimeError as e:
-            print('failed twice on openPredictor')
-
-    return preds
 
 def predTest():
     texx = ['  entj are strategic leaders , motivated to organize change .', 'entj are quick to see inefficiency and conceptualize new solutions , and enjoy developing long - range plans to accomplish entj vision .', 'entj excel at logical reasoning and are usually articulate and quick - witted .',
@@ -517,7 +426,7 @@ def createEntity(entity):
 def storePreds(preds, index):
     for sent in preds:
         if len(sent["verbs"]) > 0:
-            cleanVerbs(sent["verbs"][0], sent["words"], index )
+            cleanVerbs(sent["verbs"][0], sent["words"], index)
         # print(sent)
         # for verb in sent["verbs"]:
         #     # # print(verb)
@@ -597,13 +506,26 @@ def runDocPipeLine(pred, index, originalDoc):
         sent_text = sent_tokenize(originalDoc)
         listofPreds = infoExtract_fromArr(sent_text)
 
-        
         # print(listofPreds[0])
         return storePreds(listofPreds, index)
         # else:
         #     return
     else:
         return
+
+import spacy
+from spacy.lang.en import English
+from spacy.pipeline import EntityRuler
+import en_core_web_lg
+#nlp = en_core_web_lg.load()
+nlp = spacy.load('en_core_web_lg')
+
+#nlp = English()
+ruler = EntityRuler(nlp, overwrite_ents=True)
+#patterns = [{"label": "PERSON", "pattern": [{"LOWER": "enfj"}]}]
+patterns = [{"label": "PERSON", "pattern": [{"LOWER": {"REGEX": "[e|i]+[n|s]+[t|f]+[j+p]"}},{'LEMMA': 'be', 'OP': '?'}]}]
+ruler.add_patterns(patterns)
+nlp.add_pipe(ruler)
 
 
 def parallelProcess(index, hit):
@@ -612,6 +534,7 @@ def parallelProcess(index, hit):
 
 
 def createGraph(index):
+    torch.cuda.empty_cache()
     results = ESget(index)
     # count = mp.cpu_count()
     # pool = mp.Pool(count)
@@ -635,13 +558,13 @@ def createGraph(index):
             # pool.apply(parallelProcess, args=(index, hit))
         else:
             print('delete doc')
-            res = es.delete(index=result['_index'],doc_type=result['_type'],id=result['_id'])
+            res = es.delete(
+                index=result['_index'], doc_type=result['_type'], id=result['_id'])
             if res['result'] == 'deleted':
                 print('delete success')
             else:
                 print('failed to delete')
 
-
     # pp.pprint(sop)
     pp.pprint('done')
     elapsed_time = time.time() - start_time
@@ -655,90 +578,6 @@ def createGraph(index):
     # f.write(json_normalize(sop))
     return sop
 
-
-
-
-async def annotateDoc(doc):
-    print('running pipeline for single doc')
-    pool = mp.Pool(processes=4)
-    start_time = time.time()
-    section = doc['section']
-    section.strip()
-
-    if section != '':
-        docToStore = {}
-        docToStore["title"] = doc["title"].strip()
-        docToStore["index"] = doc["index"].strip()
-        docToStore["section"] = section
-        docToStore["url"] = doc["url"]
-        docToStore["rootNode"] = doc["rootNode"]
-        docToStore["sentences"] = []
-
-
-
-
-        hit = doc['section']
-        index = doc['index']
-
-        references = findCoReference(hit)
-        # runDocPipeLine(references, index, hit)
-        # pool.apply(parallelProcess, args=(index, hit))
-
-        coRefdoc = None
-        coRefClusters = None
-        if(references and references["document"] and references["clusters"]):
-            coRefdoc = references["document"].copy()
-            coRefClusters = references["clusters"].copy()
-            
-        if(coRefClusters != None and coRefClusters != '' and len(coRefClusters) > 0 and coRefdoc != None):
-            # word = getWord(clusters, doc, index)
-            # if word != '':
-            # cleanDoc = replaceWords(word, doc, clusters)
-            # # print(cleanDoc)
-
-            # docString = " ".join(filter(None, cleanDoc))
-            # sent_text = sent_tokenize(docString)
-            sent_Arr = sent_tokenize(hit)
-            
-
-            for sent in sent_Arr:
-                sent_toStore = {}
-                info = await infoExtract(sent)
-                sent_toStore['sentence'] = sent
-                sent_toStore['info'] = info
-                docToStore["sentences"].append(sent_toStore)
-
-            
-            return docToStore
-
-        else:
-            return docToStore
-
-
-
-
-    else:
-        print('no content do nothing')
-        return 'no content do nothing'
-        # res = es.delete(index=result['_index'],doc_type=result['_type'],id=result['_id'])
-        # if res['result'] == 'deleted':
-        #     print('delete success')
-        # else:
-        #     print('failed to delete')
-
-
-    # pp.pprint(sop)
-    pp.pprint('done')
-    elapsed_time = time.time() - start_time
-    print(elapsed_time)
-
-    # f = open('tripples.txt', 'w')
-
-    # df = json_normalize(sop)
-    # df.to_csv('tripples.csv')
-
-    # f.write(json_normalize(sop))
-    return sop
 
 # https://py2neo.org/v4/data.html#node-and-relationship-objects
 #tx = graph.begin()

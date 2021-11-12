@@ -1,4 +1,4 @@
 {
-    // "python.pythonPath": "C:\\Users\\djway\\Anaconda3\\python.exe"
-    "python.pythonPath": "/bin/python3"
+  "jupyter.jupyterServerType": "local"
+  // "python.pythonPath": "/bin/python3"
 }

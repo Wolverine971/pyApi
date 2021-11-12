@@ -1,0 +1,6 @@
+allennlp
+
+flask
+flask_cors
+
+torch
