@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 # from graph import  annotateDoc
-from annotate import  annotateDoc
+from annotate import  annotateDoc, extractInfo
 import asyncio
 
 app = Flask(__name__)
@@ -23,6 +23,14 @@ def home():
 #         data = request.json
 #         createGraph(data['index'])
 #         return 'OK'
+
+
+@app.route('/extractEntities/doc', methods=['POST'])
+def extract():
+    if request.method == 'POST':
+        # data = request.get_json()
+        data = request.json
+        return asyncio.run(extractInfo(data))
 
 
 @app.route('/getTripples/doc', methods=['GET', 'POST'])

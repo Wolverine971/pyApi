@@ -40,6 +40,66 @@ patterns = [{"label": "PERSON", "pattern": [{"LOWER": {"REGEX": "[e|i]+[n|s]+[t|
 ruler.add_patterns(patterns)
 nlp.add_pipe(ruler)
 
+async def extractInfo(doc):
+    # doc = data.doc
+    # ontology = data.ontology
+    print('Extracting Info')
+    section = doc['section'] # a paragraph of text
+    section.strip()
+    if section != '':
+        docToStore = {}
+        docToStore["title"] = doc["title"].strip()
+        # docToStore["index"] = doc["index"].strip()
+        docToStore["section"] = section
+        # used for elasticsearch to index documents scraped
+        docToStore["url"] = doc["url"]
+        docToStore["sentences"] = []
+
+        docToStore["sectionSub"] = findCoReference(section)
+
+        if docToStore["sectionSub"] != None and "document" in docToStore["sectionSub"]:
+            subsect = docToStore["sectionSub"]
+            # print(subsect)
+            # swapWord = docToStore['index'].upper()  # docToStore["index"]
+            # try:
+            #     docToStore["corefSwap"] = corefSwap(subsect, swapWord)
+
+            # except RuntimeError as e:
+            #     print('corefSwap index error')
+            #     print(docu[fr])
+            #     print(docu[to])
+
+        # interface Sectionsub {
+        #   antecedent_indices: number[][];
+        #   clusters: number[][][];
+        #   document: string[];
+        #   predicted_antecedents: number[];
+        #   top_spans: number[][];
+        # }
+
+        hit = doc['section']
+        sent_Arr = sent_tokenize(hit)
+
+        for sent in sent_Arr:
+            sent_toStore = {}
+            info = await infoExtract(sent)
+            sent_toStore['sentence'] = sent
+            sent_toStore['info'] = info
+
+            # Stanford NLP Tripplet Extract Subject Verb Predicate
+            # sent_toStore['tripple'] = triplet_extraction(sent)
+            sent_toStore['spacy'] = spacyExtract(sent)
+            docToStore["sentences"].append(sent_toStore)
+
+        return docToStore
+
+    pp.pprint('done')
+    return 'error extracting info'
+
+
+
+
+
 async def annotateDoc(doc):
     torch.cuda.empty_cache()
     print('running pipeline for single doc')
@@ -57,7 +117,6 @@ async def annotateDoc(doc):
         docToStore["url"] = doc["url"]
         docToStore["rootNode"] = doc["rootNode"]
         docToStore["sentences"] = []
-
         docToStore["sectionSub"] = findCoReference(section)
 
         if docToStore["sectionSub"] != None and "document" in docToStore["sectionSub"]:
@@ -91,19 +150,8 @@ async def annotateDoc(doc):
 
             # Stanford NLP Tripplet Extract Subject Verb Predicate
             # sent_toStore['tripple'] = triplet_extraction(sent)
-            spacy = nlp(sent)
-            sent_toStore['spacy'] = {}
-
-            tokens = []
-            for token in spacy:
-                tokens.append({'text': token.text, 'lemma': token.lemma_, 'pos': token.pos_, 'tag': token.tag_, 'dep' :token.dep_})
+            sent_toStore['spacy'] = spacyExtract(sent)
             
-            sent_toStore['spacy']['tokens'] = tokens
-            entities = []
-            for ent in spacy.ents:
-                entities.append({'text': ent.text, 'start': ent.start_char, 'end': ent.end_char, 'label': ent.label_})
-
-            sent_toStore['spacy']['entities'] = entities
 
             docToStore["sentences"].append(sent_toStore)
 
@@ -111,6 +159,25 @@ async def annotateDoc(doc):
 
     pp.pprint('done')
     return 'error processing Document'
+
+def spacyExtract(sent):
+    doc = {}
+    doc['tokens'] = []
+    doc['entities'] = []
+    spacy = nlp(sent)
+    # tokens = []
+    for token in spacy:
+        doc['tokens'].append({'text': token.text, 'lemma': token.lemma_, 'pos': token.pos_, 'tag': token.tag_, 'dep' :token.dep_})
+    
+    # sent_toStore['spacy']['tokens'] = tokens
+    # entities = []
+    for ent in spacy.ents:
+        doc['entities'].append({'text': ent.text, 'start': ent.start_char, 'end': ent.end_char, 'label': ent.label_})
+
+    return doc
+
+    # sent_toStore['spacy']['entities'] = entities
+
 
 
 def corefSwap(subsect, swapWord):
